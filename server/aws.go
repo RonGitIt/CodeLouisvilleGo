@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"github.com/aws/aws-sdk-go/aws"
@@ -14,18 +14,18 @@ type AWS struct {
 	Bucket string
 }
 
-func SetupAws(bucket string) (error){
-	awsS3 = &AWS{
+func NewAws(bucket string) (*AWS, error) {
+	awsS3 := &AWS {
 		Bucket: bucket,
 	}
-	err := awsS3.SetupSession()
+	err := awsS3.setupSession()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return awsS3, nil
 }
 
-func (a *AWS) SetupSession() error {
+func (a *AWS) setupSession() error {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String("us-east-2"),
 		Credentials: credentials.NewStaticCredentials("AKIA56L2FSSKHAQU6XET", "0km7B4XbLWak8yBXXBdTi9vRSjB4V6wqKCL7hGGQ", ""),
