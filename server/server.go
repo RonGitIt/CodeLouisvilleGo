@@ -18,3 +18,7 @@ func NewServer(bucket string) *Server {
 		awsS3: s3,
 	}
 }
+
+func (s *Server) TesthelperDuplicateCheck(objectName string) (bool, error) {
+	return s.awsS3.AlreadyExists(objectName)
+}

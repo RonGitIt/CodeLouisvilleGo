@@ -4,6 +4,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"io"
 	"log"
@@ -50,6 +51,29 @@ func (a *AWS) UploadFile(filename string, file io.Reader) (string, error) {
 		return "", err
 	}
 	return result.Location, nil
+}
+
+func (a *AWS) AlreadyExists(objectName string) (bool, error) {
+	s3Service := s3.New(a.Session)
+	resp, err := s3Service.ListObjectsV2(&s3.ListObjectsV2Input{
+		Bucket: aws.String(a.Bucket),
+	})
+	if err != nil {
+		log.Printf("S3 error: Could not set up S3 connection: %s", err)
+		return true, err
+	}
+
+	// Look through the items in the bucket and see if an object with
+	// the same name already exists.
+	for _, item := range resp.Contents {
+		if *item.Key == objectName {
+			// Found it!
+			return true, nil
+		}
+	}
+
+	// Not found
+	return false, nil
 }
 
 

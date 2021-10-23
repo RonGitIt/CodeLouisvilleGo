@@ -15,6 +15,7 @@ import (
 
 const (
 	TESTFILE = "./testdata/testfile.txt"
+	TESTFILENAME = "testfile.txt"
 	TESTBUCKET = "jkp-unit-tests"
 )
 
@@ -44,6 +45,7 @@ func setupMultipartForm() (*bytes.Buffer, string, error) {
 	header := multipartWriter.FormDataContentType()
 	return &b, header, nil
 }
+
 func TestUploadHandlerRejectsGetRequest(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, "/upload", nil)
 	if err != nil {
@@ -87,5 +89,42 @@ func TestUploadReturnsSuccessStruct (t *testing.T) {
 	}
 	if response.Success != true {
 		t.Errorf("HandleImageUpload did not return Success = true")
+	}
+}
+
+func TestThatDuplicatesAreIdentified(t *testing.T) {
+	uploadForm, contentTypeHeader, err := setupMultipartForm()
+	if err != nil {
+		t.Errorf("Error setting up test form for upload: %s", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "/upload", uploadForm)
+	req.Header.Set("Content-Type", contentTypeHeader)
+	if err != nil {
+		t.Errorf("Error creating request: %v", err)
+	}
+
+	// Send the file once to make sure it's there
+	rr := httptest.NewRecorder()
+	testServer := server.NewServer(TESTBUCKET)
+	handler := http.HandlerFunc(testServer.HandleImageUpload)
+	handler.ServeHTTP(rr, req)
+
+	// Then check whether it's recognized as a duplicate
+	if exists, err := testServer.TesthelperDuplicateCheck(TESTFILENAME); err != nil {
+		t.Errorf("Error while checking for duplicate file in AWS: %v", err)
+	} else if !exists {
+		t.Errorf("AlreadyExists did not correctly detect the existing file")
+	}
+}
+
+func TestThatSingletonsDontShowAsDuplicates(t *testing.T) {
+	// File has never been sent, so should not come back as
+	// a duplicate when we check
+	testServer := server.NewServer(TESTBUCKET)
+	if exists, err := testServer.TesthelperDuplicateCheck("JibberJabber.NotARealFile"); err != nil {
+		t.Errorf("Error while checking for duplicate file in AWS: %v", err)
+	} else if exists {
+		t.Error("AlreadyExists incorrectly said that JibberJabber.NotARealFile is in the test bucket even though it isn't")
 	}
 }

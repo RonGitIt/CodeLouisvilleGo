@@ -42,6 +42,7 @@ func (s *Server) HandleImageUpload(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("Error marshalling web return struct: %s", err)
 		}
 
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		w.Write(responseString)
 
