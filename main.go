@@ -6,23 +6,57 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
+)
+
+const (
+	bucketName = "go-inventory-images"
+)
+
+var (
+	awsS3 *AWS
 )
 
 func main() {
+	err := SetupAws(bucketName)
+	if err != nil {
+		log.Fatalf("Error setting up AWS session: %q. Exiting", err)
+	}
+
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Write([]byte("Hello world"))
 	} )
 	http.HandleFunc("/upload", handleImageUpload)
-	err := http.ListenAndServe(":5050", nil)
+	err = http.ListenAndServe(":5050", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
 func handleImageUpload(w http.ResponseWriter, r *http.Request){
-	defer func() {fmt.Println("Exiting handleImageUpload")}()
+	switch r.Method {
+	case http.MethodPost:
+		r.ParseMultipartForm(32 << 20)
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+
+		var buf bytes.Buffer
+		io.Copy(&buf, file)
+		uploadUrl, err := awsS3.UploadFile(header.Filename, &buf)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(fmt.Sprintf("Error uploading file to aws: %s", err)))
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(fmt.Sprintf("Url to uploaded file: %s", uploadUrl)))
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	/*defer func() {fmt.Println("Exiting handleImageUpload")}()
 
 	outputDir := "/home/jon/tmp"
 	switch r.Method {
@@ -49,5 +83,5 @@ func handleImageUpload(w http.ResponseWriter, r *http.Request){
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
-	}
+	}*/
 }
