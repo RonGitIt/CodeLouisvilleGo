@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 )
 
 func main() {
@@ -18,10 +22,14 @@ func main() {
 }
 
 func handleImageUpload(w http.ResponseWriter, r *http.Request){
+	defer func() {fmt.Println("Exiting handleImageUpload")}()
+
+	outputDir := "/home/jon/tmp"
 	switch r.Method {
 	case http.MethodPost:
-		w.Write([]byte("That was a post to handleImageUpload"))
 		r.ParseMultipartForm(32 << 20)
+
+		var buf bytes.Buffer
 		file, header, err := r.FormFile("file")
 		if err != nil {
 			log.Printf("Error getting file from request: %v\n", err)
@@ -29,7 +37,14 @@ func handleImageUpload(w http.ResponseWriter, r *http.Request){
 			return
 		}
 		defer file.Close()
-		w.Write([]byte(fmt.Sprintf("File info: %v", header.Size)))
+		io.Copy(&buf, file)
+
+		outputFilename := filepath.Join(outputDir, header.Filename)
+		outputFile, err := os.OpenFile(outputFilename, os.O_WRONLY|os.O_CREATE, 0666)
+		defer outputFile.Close()
+		io.Copy(outputFile, &buf)
+		w.WriteHeader(http.StatusCreated)
+		w.Write([]byte(fmt.Sprintf("File size: %v\n", header.Size)))
 		return
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
