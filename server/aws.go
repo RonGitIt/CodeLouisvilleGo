@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -40,6 +41,12 @@ func (a *AWS) setupSession() error {
 }
 
 func (a *AWS) UploadFile(filename string, file io.Reader) (string, error) {
+	// Check if file already exists. Don't overwrite existing files
+	if exists, err := a.AlreadyExists(filename); err != nil {
+		return "", err
+	} else if exists {
+		return "", errors.New("Duplicate filename already exists in bucket")
+	}
 	uploader := s3manager.NewUploader(a.Session)
 	result, err := uploader.Upload(&s3manager.UploadInput{
 		Bucket:  aws.String(a.Bucket),
@@ -76,4 +83,24 @@ func (a *AWS) AlreadyExists(objectName string) (bool, error) {
 	return false, nil
 }
 
+func (a *AWS) DeleteFile(objectName string) (bool, error) {
+		s3Service := s3.New(a.Session)
+		_, err := s3Service.DeleteObject(&s3.DeleteObjectInput{
+			Bucket: aws.String(a.Bucket),
+			Key: aws.String(objectName),
+		})
+		if err != nil {
+			log.Printf("Error deleting object (%s) from bucket (%s): %s", objectName, a.Bucket, err)
+			return false, err
+		}
+		err = s3Service.WaitUntilObjectNotExists(&s3.HeadObjectInput{
+			Bucket: aws.String(a.Bucket),
+			Key: aws.String(objectName),
+		})
+		if err != nil {
+			log.Printf("Error waiting for object deleteion (%s:%s): %s", a.Bucket, objectName, err)
+			return false, err
+		}
+		return true, nil
+}
 

@@ -22,3 +22,7 @@ func NewServer(bucket string) *Server {
 func (s *Server) TesthelperDuplicateCheck(objectName string) (bool, error) {
 	return s.awsS3.AlreadyExists(objectName)
 }
+
+func(s *Server) TesthelperDeleteFile(objectName string) (bool, error) {
+	return s.awsS3.DeleteFile(objectName)
+}

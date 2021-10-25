@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
+	"math/rand"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -19,7 +22,7 @@ const (
 	TESTBUCKET = "jkp-unit-tests"
 )
 
-func setupMultipartForm() (*bytes.Buffer, string, error) {
+func setupMultipartForm(nameOfFile string) (*bytes.Buffer, string, error) {
 	// Setup multi-part form data
 	var b bytes.Buffer
 	multipartWriter := multipart.NewWriter(&b)
@@ -31,7 +34,13 @@ func setupMultipartForm() (*bytes.Buffer, string, error) {
 	}
 	defer testFile.Close()
 	// Add the file form field
-	formFileWriter, err := multipartWriter.CreateFormFile("file", testFile.Name())
+	var fileNameForForm string
+	if nameOfFile == "" {
+		fileNameForForm = testFile.Name()
+	} else {
+		fileNameForForm = nameOfFile
+	}
+	formFileWriter, err := multipartWriter.CreateFormFile("file", fileNameForForm)
 	if err != nil {
 		fmt.Errorf("Error adding file form field: %v", err)
 		return nil, "", err
@@ -44,6 +53,22 @@ func setupMultipartForm() (*bytes.Buffer, string, error) {
 	multipartWriter.Close()
 	header := multipartWriter.FormDataContentType()
 	return &b, header, nil
+}
+
+func setupFileUploadRequest(nameOfFile string) (*http.Request, error) {
+	uploadForm, contentTypeHeader, err := setupMultipartForm(nameOfFile)
+	if err != nil {
+		log.Printf("Error setting up test form for upload: %s", err)
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "/upload", uploadForm)
+	req.Header.Set("Content-Type", contentTypeHeader)
+	if err != nil {
+		log.Printf("Error creating request: %v", err)
+		return nil, err
+	}
+	return req, nil
 }
 
 func TestUploadHandlerRejectsGetRequest(t *testing.T) {
@@ -62,16 +87,11 @@ func TestUploadHandlerRejectsGetRequest(t *testing.T) {
 }
 
 func TestUploadReturnsSuccessStruct (t *testing.T) {
-	form, contentTypeHeader, err := setupMultipartForm()
+	req, err := setupFileUploadRequest("")
 	if err != nil {
-		t.Errorf("Error setting up multipart form: %v", err)
+		t.Errorf("Error setting up file upload request: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, "/upload", form)
-	req.Header.Set("Content-Type", contentTypeHeader)
-	if err != nil {
-		t.Errorf("Error creating request: %v", err)
-	}
 
 	rr := httptest.NewRecorder()
 	testServer := server.NewServer(TESTBUCKET)
@@ -93,16 +113,11 @@ func TestUploadReturnsSuccessStruct (t *testing.T) {
 }
 
 func TestThatDuplicatesAreIdentified(t *testing.T) {
-	uploadForm, contentTypeHeader, err := setupMultipartForm()
+	req, err := setupFileUploadRequest("")
 	if err != nil {
-		t.Errorf("Error setting up test form for upload: %s", err)
+		t.Errorf("Error setting up file upload request: %v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, "/upload", uploadForm)
-	req.Header.Set("Content-Type", contentTypeHeader)
-	if err != nil {
-		t.Errorf("Error creating request: %v", err)
-	}
 
 	// Send the file once to make sure it's there
 	rr := httptest.NewRecorder()
@@ -116,6 +131,12 @@ func TestThatDuplicatesAreIdentified(t *testing.T) {
 	} else if !exists {
 		t.Errorf("AlreadyExists did not correctly detect the existing file")
 	}
+
+	// Remove file that was uploaded
+	_, err = testServer.TesthelperDeleteFile(TESTFILENAME)
+	if err != nil {
+		t.Logf("Error during cleanup: Could not delete object (%s) from test bucket: %s", TESTFILENAME, err)
+	}
 }
 
 func TestThatSingletonsDontShowAsDuplicates(t *testing.T) {
@@ -126,5 +147,42 @@ func TestThatSingletonsDontShowAsDuplicates(t *testing.T) {
 		t.Errorf("Error while checking for duplicate file in AWS: %v", err)
 	} else if exists {
 		t.Error("AlreadyExists incorrectly said that JibberJabber.NotARealFile is in the test bucket even though it isn't")
+	}
+}
+
+func TestThatDuplicateFilenameUploadIsRejected(t *testing.T) {
+	filename := fmt.Sprintf("%x", rand.Int63n(100000000000))
+	req, err := setupFileUploadRequest(filename)
+	if err != nil {
+		t.Errorf("Error setting up file upload request: %v", err)
+	}
+	t.Logf("Testing duplicate upload with filename %s", filename)
+
+	testServer := server.NewServer(TESTBUCKET)
+	handler := http.HandlerFunc(testServer.HandleImageUpload)
+	// Upload it once
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	// Try uploading it a second time--it should reject it and not overwrite
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("HandleImageUpload should have responded with Bad Request on duplicate attempt, but it didn't")
+	}
+	var resp *server.WebResponse
+	err = json.NewDecoder(rr.Body).Decode(&resp)
+	if err != nil {
+		t.Errorf("Error decoding json response after duplicate upload attempt: %s", err)
+	}
+	if resp.Success != false {
+		t.Errorf("Success was not false after duplicate upload attempt")
+	}
+	if !strings.Contains(strings.ToLower(resp.ErrorDetails), "duplicate filename") {
+		t.Errorf("Error message not correct after duplicate upload attempt. Error message provided: %s", resp.ErrorDetails)
+	}
+
+	// Clean up... delete uploaded file from S3
+	_, err = testServer.TesthelperDeleteFile(filename)
+	if err != nil {
+		t.Logf("Error during cleanup... could not delete object (%s) from test bucket: %s", filename, err)
 	}
 }

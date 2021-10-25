@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 type WebResponse struct {
@@ -26,25 +27,29 @@ func (s *Server) HandleImageUpload(w http.ResponseWriter, r *http.Request) {
 		var buf bytes.Buffer
 		io.Copy(&buf, file)
 		uploadUrl, err := s.awsS3.UploadFile(header.Filename, &buf)
-		if err != nil {
+		if err != nil && strings.Contains(err.Error(), "Duplicate filename"){
+			resp, _ := json.Marshal(WebResponse{
+				Success: false,
+				ErrorDetails: err.Error(),
+				S3Url: "",
+			})
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(resp))
+		} else if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(fmt.Sprintf("Error uploading file to aws: %s", err)))
 		}
 
-		response := WebResponse{
+		resp, _ := json.Marshal(WebResponse{
 			Success: true,
 			ErrorDetails: "",
 			S3Url: fmt.Sprintf("Url to uploaded file: %s", uploadUrl),
-		}
-		responseString, err := json.Marshal(response)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Printf("Error marshalling web return struct: %s", err)
-		}
+		})
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		w.Write(responseString)
+		w.Write(resp)
 
 
 	default:
