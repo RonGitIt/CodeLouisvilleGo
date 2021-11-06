@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -14,6 +15,8 @@ import (
 type AWS struct {
 	Session *session.Session
 	Bucket string
+	id string
+	secret string
 }
 
 func NewAws(bucket string) (*AWS, error) {
@@ -54,8 +57,7 @@ func (a *AWS) UploadFile(filename string, file io.Reader) (string, error) {
 		Body: file,
 	})
 	if err != nil {
-		log.Printf("Error during S3 upload: %s", err)
-		return "", err
+		return "", fmt.Errorf("error during S3 upload: %w", err)
 	}
 	return result.Location, nil
 }
@@ -66,8 +68,7 @@ func (a *AWS) AlreadyExists(objectName string) (bool, error) {
 		Bucket: aws.String(a.Bucket),
 	})
 	if err != nil {
-		log.Printf("S3 error: Could not set up S3 connection: %s", err)
-		return true, err
+		return true, fmt.Errorf("could not set up S3 connection: %w", err)
 	}
 
 	// Look through the items in the bucket and see if an object with

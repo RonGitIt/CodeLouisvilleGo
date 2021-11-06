@@ -8,7 +8,7 @@ type Server struct {
 	awsS3 *AWS
 }
 
-func NewServer(bucket string) *Server {
+func NewServer(bucket string, passphrase string) *Server {
 	s3, err := NewAws(bucket)
 	if err != nil {
 		log.Fatalf("Error setting up S3: %s", err)

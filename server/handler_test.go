@@ -20,6 +20,7 @@ const (
 	TESTFILE = "./testdata/testfile.txt"
 	TESTFILENAME = "testfile.txt"
 	TESTBUCKET = "jkp-unit-tests"
+	TESTPASSWORD = "TheSecretPassword987"
 )
 
 func setupMultipartForm(nameOfFile string) (*bytes.Buffer, string, error) {
@@ -78,7 +79,7 @@ func TestUploadHandlerRejectsGetRequest(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	testServer := server.NewServer(TESTBUCKET)
+	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 	handler.ServeHTTP(rr, req)
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
@@ -94,7 +95,7 @@ func TestUploadReturnsSuccessStruct (t *testing.T) {
 
 
 	rr := httptest.NewRecorder()
-	testServer := server.NewServer(TESTBUCKET)
+	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 	handler.ServeHTTP(rr, req)
 
@@ -121,7 +122,7 @@ func TestThatDuplicatesAreIdentified(t *testing.T) {
 
 	// Send the file once to make sure it's there
 	rr := httptest.NewRecorder()
-	testServer := server.NewServer(TESTBUCKET)
+	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 	handler.ServeHTTP(rr, req)
 
@@ -142,7 +143,7 @@ func TestThatDuplicatesAreIdentified(t *testing.T) {
 func TestThatSingletonsDontShowAsDuplicates(t *testing.T) {
 	// File has never been sent, so should not come back as
 	// a duplicate when we check
-	testServer := server.NewServer(TESTBUCKET)
+	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
 	if exists, err := testServer.TesthelperDuplicateCheck("JibberJabber.NotARealFile"); err != nil {
 		t.Errorf("Error while checking for duplicate file in AWS: %v", err)
 	} else if exists {
@@ -158,10 +159,12 @@ func TestThatDuplicateFilenameUploadIsRejected(t *testing.T) {
 	}
 	t.Logf("Testing duplicate upload with filename %s", filename)
 
-	testServer := server.NewServer(TESTBUCKET)
+	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
+
 	// Upload it once
 	handler.ServeHTTP(httptest.NewRecorder(), req)
+
 	// Try uploading it a second time--it should reject it and not overwrite
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -173,9 +176,11 @@ func TestThatDuplicateFilenameUploadIsRejected(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error decoding json response after duplicate upload attempt: %s", err)
 	}
+	// Check that Webresponse.Success is false
 	if resp.Success != false {
 		t.Errorf("Success was not false after duplicate upload attempt")
 	}
+	// Check that Webresponse.ErrorDetails indicates that file was a duplicate
 	if !strings.Contains(strings.ToLower(resp.ErrorDetails), "duplicate filename") {
 		t.Errorf("Error message not correct after duplicate upload attempt. Error message provided: %s", resp.ErrorDetails)
 	}
@@ -185,4 +190,25 @@ func TestThatDuplicateFilenameUploadIsRejected(t *testing.T) {
 	if err != nil {
 		t.Logf("Error during cleanup... could not delete object (%s) from test bucket: %s", filename, err)
 	}
+}
+
+func TestGetFile(t *testing.T) {
+	// Upload file that we're going to test getting
+	filename := fmt.Sprintf("%x", rand.Int63n(100000000000))
+	req, err := setupFileUploadRequest(filename)
+	if err != nil {
+		t.Errorf("Error setting up file upload request: %v", err)
+	}
+	t.Logf("Testing duplicate upload with filename %s", filename)
+
+	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
+	handler := http.HandlerFunc(testServer.HandleImageUpload)
+
+	// Upload it once
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+
+
+	// Try to get it; verify the hash?
+
+	//
 }

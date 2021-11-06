@@ -56,32 +56,8 @@ func (s *Server) HandleImageUpload(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	/*defer func() {fmt.Println("Exiting HandleImageUpload")}()
+}
 
-	outputDir := "/home/jon/tmp"
-	switch r.Method {
-	case http.MethodPost:
-		r.ParseMultipartForm(32 << 20)
+func (s *Server) HandleGetImage(w http.ResponseWriter, r *http.Request) {
 
-		var buf bytes.Buffer
-		file, header, err := r.FormFile("file")
-		if err != nil {
-			log.Printf("Error getting file from request: %v\n", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		defer file.Close()
-		io.Copy(&buf, file)
-
-		outputFilename := filepath.Join(outputDir, header.Filename)
-		outputFile, err := os.OpenFile(outputFilename, os.O_WRONLY|os.O_CREATE, 0666)
-		defer outputFile.Close()
-		io.Copy(outputFile, &buf)
-		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(fmt.Sprintf("File size: %v\n", header.Size)))
-		return
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}*/
 }
