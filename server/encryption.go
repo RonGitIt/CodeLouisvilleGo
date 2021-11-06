@@ -11,13 +11,21 @@ import (
 	"log"
 )
 
-func makeHash(magicKey string) []byte {
+func makeHash(passphrase string) []byte {
 	hasher := md5.New()
-	hasher.Write([]byte(magicKey))
+	hasher.Write([]byte(passphrase))
 	hash := hasher.Sum(nil)
 	return hash
 }
 
+// Encrypt encrypts a string using a provided password. This
+// uses an AES-128 cipher and is intended only to provide
+// simple obfuscation of the protected string (and avoid
+// posting plaintext tokens and secrets to a public GitHub
+// repo. It is not intended to provide robust security and
+// should not be relied upon for that purpose.
+//
+// The ciphered string is returned, Base64 encoded.
 func Encrypt(plaintext string, passphrase string) string {
 	tempHash := makeHash(passphrase)
 	gcmBlock, err := aes.NewCipher(tempHash)
@@ -34,6 +42,9 @@ func Encrypt(plaintext string, passphrase string) string {
 	return base64.StdEncoding.EncodeToString(ciphertext)
 }
 
+// Decrypt decrypts a string that was previously encrypted with
+// Encrypt(). If the incorrect password is provided, an error
+// is returned.
 func Decrypt(ciphertext string, passphrase string) (string, error)  {
 	cipherBytes, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {

@@ -129,3 +129,17 @@ func (a *AWS) DeleteFile(objectName string) (bool, error) {
 		return true, nil
 }
 
+func (a *AWS) GetFile(objectName string) (*[]byte, int64, error) {
+	downloader := s3manager.NewDownloader(a.Session)
+	fileData := aws.NewWriteAtBuffer([]byte{})
+	n, err := downloader.Download(fileData,
+		&s3.GetObjectInput{
+		Bucket: aws.String(a.Bucket),
+		Key: aws.String(objectName),
+		})
+	if err != nil {
+		return nil, 0, fmt.Errorf("error while downloading in GetFile: %w", err)
+	}
+	fileBytes := fileData.Bytes()
+	return &fileBytes, n, nil
+}

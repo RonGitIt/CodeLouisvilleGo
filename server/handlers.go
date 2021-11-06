@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -59,5 +60,38 @@ func (s *Server) HandleImageUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) HandleGetImage(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		requestedFile := strings.TrimPrefix(r.URL.Path, "/get/")
+		if strings.Contains(requestedFile, "/") {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("Request may only be for a filename. Paths cannot be included"))
+			return
+		}
 
+		fileData, size, err := s.awsS3.GetFile(requestedFile)
+		if err != nil{
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(fmt.Sprintf("Error getting file: %v", err)))
+			return
+		}
+
+		var dataLength int
+		if size < 512 {
+			dataLength = len(*fileData)
+		} else {
+			dataLength = 512
+		}
+		contentType := http.DetectContentType((*fileData)[:dataLength])
+		w.Header().Set("Content-Disposition", "attachment; filename=" + strconv.Quote(requestedFile))
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", size))
+		w.Header().Set("Content-Type", contentType)
+		w.WriteHeader(http.StatusOK)
+		w.Write(*fileData)
+		return
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
 }

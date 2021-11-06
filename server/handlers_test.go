@@ -3,6 +3,7 @@ package server_test
 import (
 	"awsuploader/server"
 	"bytes"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,12 +30,24 @@ var (
 		Id: ENCRYPTEDID,
 		Secret: ENCRYPTEDSECRET,
 	}
+
+	TESTFILEMD5 []byte
 )
+
+func getMd5(input io.Reader) ([]byte, error) {
+	hash := md5.New()
+	if _, err := io.Copy(hash, input); err != nil {
+		return nil, fmt.Errorf("Error copying data while computing MD5 hash: %w", err)
+	}
+
+	return hash.Sum(nil), nil
+}
 
 func setupMultipartForm(nameOfFile string) (*bytes.Buffer, string, error) {
 	// Setup multi-part form data
 	var b bytes.Buffer
 	multipartWriter := multipart.NewWriter(&b)
+
 	// Open the test file
 	testFile, err := os.Open(TESTFILE)
 	if err != nil {
@@ -42,6 +55,7 @@ func setupMultipartForm(nameOfFile string) (*bytes.Buffer, string, error) {
 		return nil, "", err
 	}
 	defer testFile.Close()
+
 	// Add the file form field
 	var fileNameForForm string
 	if nameOfFile == "" {
@@ -51,14 +65,22 @@ func setupMultipartForm(nameOfFile string) (*bytes.Buffer, string, error) {
 	}
 	formFileWriter, err := multipartWriter.CreateFormFile("file", fileNameForForm)
 	if err != nil {
-		fmt.Errorf("Error adding file form field: %v", err)
-		return nil, "", err
+		return nil, "", fmt.Errorf("Error adding file form field: %v", err)
 	}
+
 	// Copy over test file data and close the multipart writer
 	if _, err := io.Copy(formFileWriter, testFile); err != nil {
-		fmt.Errorf("Error copying data to file form field: %x", err)
+		return nil, "", fmt.Errorf("Error copying data to file form field: %x", err)
+	}
+
+	// Set the MD5 hash of the file for comparison later
+	testFile.Seek(0, io.SeekStart)
+	TESTFILEMD5, err = getMd5(testFile)
+	if err != nil {
 		return nil, "", err
 	}
+
+	// Done
 	multipartWriter.Close()
 	header := multipartWriter.FormDataContentType()
 	return &b, header, nil
@@ -212,11 +234,47 @@ func TestGetFile(t *testing.T) {
 	testServer := server.NewServer(CONFIG)
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 
-	// Upload it once
+	// Upload it
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
+	// Download it
+	handler = http.HandlerFunc(testServer.HandleGetImage)
+	req, _ = http.NewRequest(http.MethodGet, "/get/" + filename, nil)
+	respRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(respRecorder, req)
 
-	// Try to get it; verify the hash?
+	// Check the downloaded file!
+	result := respRecorder.Result()
+	if result.StatusCode != http.StatusOK {
+		t.Logf("HandleGetImage did not return expected status code (%v). Got %v",
+			http.StatusOK, result.StatusCode)
+		t.Fail()
+	}
 
-	//
+	if !strings.Contains(result.Header["Content-Disposition"][0], "attachment") {
+		t.Logf("HandleGetImage did not set the Content-Disposition header")
+		t.Fail()
+	}
+
+	returnedMd5, err := getMd5(result.Body)
+	if err != nil {
+		t.Logf("Error getting MD5 hash of returned file: %v", err)
+		t.Fail()
+	} else if !bytes.Equal(returnedMd5, TESTFILEMD5) {
+		t.Logf("MD5 hash of returned file does not match MD5 of original file")
+		t.Fail()
+	}
+}
+
+func TestGetFileRejectsPaths(t *testing.T){
+	testServer := server.NewServer(CONFIG)
+	handler := http.HandlerFunc(testServer.HandleGetImage)
+	req, _ := http.NewRequest(http.MethodGet, "/get/file/with/path", nil)
+	respRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(respRecorder, req)
+
+	if respRecorder.Result().StatusCode != http.StatusBadRequest {
+		t.Logf("HandleGetImage did not return a BadRequest when sent a filename with a path")
+		t.Fail()
+	}
 }
