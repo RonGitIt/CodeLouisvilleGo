@@ -15,15 +15,39 @@ import (
 type AWS struct {
 	Session *session.Session
 	Bucket string
-	id string
-	secret string
+	Id string
+	Secret string
 }
 
-func NewAws(bucket string) (*AWS, error) {
+type AwsConfig struct {
+	Bucket string
+	Password string
+	Id string
+	Secret string
+}
+
+func NewAws(config AwsConfig) (*AWS, error) {
 	awsS3 := &AWS {
-		Bucket: bucket,
+		Bucket: config.Bucket,
+		Id: "",
+		Secret: "",
 	}
-	err := awsS3.setupSession()
+
+	//id, err := Decrypt("7JTD2xL8fQE56RrJ5H4kwUpa0+PqEYZk1PsmOh7WBhf5zD0o2b0idJPuN1Nof2Rc", passphrase)
+	id, err := Decrypt(config.Id, config.Password)
+	if err != nil {
+		return awsS3, fmt.Errorf("error decrypting id during AWS struct creation: %w", err)
+	}
+	awsS3.Id = id
+
+	//secret, err := Decrypt("9ZfHw94LP6P4jnXBMRCUhKFpj+5Z82x3vOajVaecsZ4PTFXcM1o5XGxonLAS4dT+GJajSwUv1zGw82LXdMR6IqiyTio=", passphrase)
+	secret, err := Decrypt(config.Secret, config.Password)
+	if err != nil {
+		return awsS3, fmt.Errorf("error decrypting secret during AWS struct creation: %w", err)
+	}
+	awsS3.Secret = secret
+
+	err = awsS3.setupSession()
 	if err != nil {
 		return nil, err
 	}

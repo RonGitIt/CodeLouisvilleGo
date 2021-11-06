@@ -20,7 +20,15 @@ const (
 	TESTFILE = "./testdata/testfile.txt"
 	TESTFILENAME = "testfile.txt"
 	TESTBUCKET = "jkp-unit-tests"
-	TESTPASSWORD = "TheSecretPassword987"
+)
+
+var (
+	CONFIG = server.AwsConfig {
+		Bucket: TESTBUCKET,
+		Password: TESTPASSWORD,
+		Id: ENCRYPTEDID,
+		Secret: ENCRYPTEDSECRET,
+	}
 )
 
 func setupMultipartForm(nameOfFile string) (*bytes.Buffer, string, error) {
@@ -59,7 +67,7 @@ func setupMultipartForm(nameOfFile string) (*bytes.Buffer, string, error) {
 func setupFileUploadRequest(nameOfFile string) (*http.Request, error) {
 	uploadForm, contentTypeHeader, err := setupMultipartForm(nameOfFile)
 	if err != nil {
-		log.Printf("Error setting up test form for upload: %s", err)
+		log.Printf("Error setting up 9ZfHw94LP6P4jnXBMRCUhKFpj+5Z82x3vOajVaecsZ4PTFXcM1o5XGxonLAS4dT+GJajSwUv1zGw82LXdMR6IqiyTio=test form for upload: %s", err)
 		return nil, err
 	}
 
@@ -79,7 +87,7 @@ func TestUploadHandlerRejectsGetRequest(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
+	testServer := server.NewServer(CONFIG)
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 	handler.ServeHTTP(rr, req)
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
@@ -95,7 +103,7 @@ func TestUploadReturnsSuccessStruct (t *testing.T) {
 
 
 	rr := httptest.NewRecorder()
-	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
+	testServer := server.NewServer(CONFIG)
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 	handler.ServeHTTP(rr, req)
 
@@ -122,7 +130,7 @@ func TestThatDuplicatesAreIdentified(t *testing.T) {
 
 	// Send the file once to make sure it's there
 	rr := httptest.NewRecorder()
-	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
+	testServer := server.NewServer(CONFIG)
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 	handler.ServeHTTP(rr, req)
 
@@ -143,7 +151,7 @@ func TestThatDuplicatesAreIdentified(t *testing.T) {
 func TestThatSingletonsDontShowAsDuplicates(t *testing.T) {
 	// File has never been sent, so should not come back as
 	// a duplicate when we check
-	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
+	testServer := server.NewServer(CONFIG)
 	if exists, err := testServer.TesthelperDuplicateCheck("JibberJabber.NotARealFile"); err != nil {
 		t.Errorf("Error while checking for duplicate file in AWS: %v", err)
 	} else if exists {
@@ -159,7 +167,7 @@ func TestThatDuplicateFilenameUploadIsRejected(t *testing.T) {
 	}
 	t.Logf("Testing duplicate upload with filename %s", filename)
 
-	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
+	testServer := server.NewServer(CONFIG)
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 
 	// Upload it once
@@ -201,7 +209,7 @@ func TestGetFile(t *testing.T) {
 	}
 	t.Logf("Testing duplicate upload with filename %s", filename)
 
-	testServer := server.NewServer(TESTBUCKET, TESTPASSWORD)
+	testServer := server.NewServer(CONFIG)
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 
 	// Upload it once

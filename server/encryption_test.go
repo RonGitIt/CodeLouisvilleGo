@@ -1,16 +1,22 @@
-package server
+package server_test
 
-import "testing"
+import (
+	"awsuploader/server"
+	"testing"
+)
 
 const (
 	TESTPLAINTEXT = "This is the plaintext"
 	TESTPASSWORD = "SuperStrongPassword987"
+	TESTID = "ThisIsTheTestId"
+	TESTSECRET = "ThisIsTheTestSecret"
+
 )
 
 func TestEncryptAndDecrypt(t *testing.T) {
-	ciphertext := Encrypt(TESTPLAINTEXT, TESTPASSWORD)
+	ciphertext := server.Encrypt(TESTPLAINTEXT, TESTPASSWORD)
 	t.Logf("Encrypted text: %s", ciphertext)
-	plaintext, err := Decrypt(ciphertext, TESTPASSWORD)
+	plaintext, err := server.Decrypt(ciphertext, TESTPASSWORD)
 	if err != nil {
 		t.Log(err)
 		t.Fail()
@@ -23,9 +29,9 @@ func TestEncryptAndDecrypt(t *testing.T) {
 }
 
 func TestDecryptionWithBadPassword(t *testing.T) {
-	ciphertext := Encrypt(TESTPLAINTEXT, TESTPASSWORD)
+	ciphertext := server.Encrypt(TESTPLAINTEXT, TESTPASSWORD)
 	//t.Logf("Encrypted text: %s", ciphertext)
-	_ , err := Decrypt(ciphertext, "This is not the password")
+	_ , err := server.Decrypt(ciphertext, "This is not the password")
 	if err == nil {
 		t.Logf("Attempt to decrypt with wrong password should have returned an error but didn't")
 		t.Fail()
