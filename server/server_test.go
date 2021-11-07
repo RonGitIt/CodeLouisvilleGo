@@ -1,8 +1,14 @@
-package server
+package server_test
 
-import "testing"
+import (
+	"awsuploader/server"
+	"testing"
+)
 
 func TestThatErrorIsReturnedIfPasswordFails(t *testing.T){
-	t.Log("WRITE THE TEST")
-	t.Fail()
+	badConfig := CONFIG
+	badConfig.Password = "NotTheCorrectPassword"
+	if	_, err := server.NewServer(badConfig); err == nil {
+		t.Errorf("NewServer did not return an erro when wrong password is provided")
+	}
 }

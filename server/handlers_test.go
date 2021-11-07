@@ -21,6 +21,8 @@ const (
 	TESTFILE = "./testdata/testfile.txt"
 	TESTFILENAME = "testfile.txt"
 	TESTBUCKET = "jkp-unit-tests"
+	ENCRYPTEDID = "Dx7ZgyFXUyv4x5c5vqijXwuDuj1Ej43u2jd/gcAgzIyaPCvSQchGF9ukO0zW55sq"
+	ENCRYPTEDSECRET = "cJCSnSvm9S0bDFTkcm06Iw8HXivyewQaCydsdCzXQOBIDs8nud9Ab6EBPCFzcgmT6jv7HhFAfP+VMpZiWdo8QbPUP5E="
 )
 
 var (
@@ -109,7 +111,10 @@ func TestUploadHandlerRejectsGetRequest(t *testing.T) {
 	}
 
 	rr := httptest.NewRecorder()
-	testServer := server.NewServer(CONFIG)
+	testServer, err := server.NewServer(CONFIG)
+	if err != nil {
+		t.Errorf("Error creating server: %v", err)
+	}
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 	handler.ServeHTTP(rr, req)
 	if status := rr.Code; status != http.StatusMethodNotAllowed {
@@ -118,20 +123,24 @@ func TestUploadHandlerRejectsGetRequest(t *testing.T) {
 }
 
 func TestUploadReturnsSuccessStruct (t *testing.T) {
-	req, err := setupFileUploadRequest("")
+	req, err := setupFileUploadRequest(TESTFILENAME)
 	if err != nil {
 		t.Errorf("Error setting up file upload request: %v", err)
 	}
 
 
 	rr := httptest.NewRecorder()
-	testServer := server.NewServer(CONFIG)
+	testServer, err := server.NewServer(CONFIG)
+	if err !=  nil {
+		t.Errorf("Error setting up server: %v", err)
+	}
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 	handler.ServeHTTP(rr, req)
 
 	// Check and make sure it gave a 201 status code
 	if rr.Code != http.StatusCreated {
 		t.Errorf("HandleImageUpload did not return a 201 status code for upload")
+		t.Logf("It returned %v", rr.Code)
 	}
 	// Check and make sure the response object indicates success
 	var response server.WebResponse
@@ -140,7 +149,11 @@ func TestUploadReturnsSuccessStruct (t *testing.T) {
 	}
 	if response.Success != true {
 		t.Errorf("HandleImageUpload did not return Success = true")
+		t.Logf("It returned %v", response.Success)
+		t.Logf("Error description: %s", response.ErrorDetails)
 	}
+
+	testServer.TesthelperDeleteFile(TESTFILENAME)
 }
 
 func TestThatDuplicatesAreIdentified(t *testing.T) {
@@ -152,7 +165,10 @@ func TestThatDuplicatesAreIdentified(t *testing.T) {
 
 	// Send the file once to make sure it's there
 	rr := httptest.NewRecorder()
-	testServer := server.NewServer(CONFIG)
+	testServer, err := server.NewServer(CONFIG)
+	if err !=  nil {
+		t.Errorf("Error setting up server: %v", err)
+	}
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 	handler.ServeHTTP(rr, req)
 
@@ -173,7 +189,10 @@ func TestThatDuplicatesAreIdentified(t *testing.T) {
 func TestThatSingletonsDontShowAsDuplicates(t *testing.T) {
 	// File has never been sent, so should not come back as
 	// a duplicate when we check
-	testServer := server.NewServer(CONFIG)
+	testServer, err := server.NewServer(CONFIG)
+	if err !=  nil {
+		t.Errorf("Error setting up server: %v", err)
+	}
 	if exists, err := testServer.TesthelperDuplicateCheck("JibberJabber.NotARealFile"); err != nil {
 		t.Errorf("Error while checking for duplicate file in AWS: %v", err)
 	} else if exists {
@@ -189,7 +208,10 @@ func TestThatDuplicateFilenameUploadIsRejected(t *testing.T) {
 	}
 	t.Logf("Testing duplicate upload with filename %s", filename)
 
-	testServer := server.NewServer(CONFIG)
+	testServer, err := server.NewServer(CONFIG)
+	if err !=  nil {
+		t.Errorf("Error setting up server: %v", err)
+	}
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 
 	// Upload it once
@@ -231,7 +253,10 @@ func TestGetFile(t *testing.T) {
 	}
 	t.Logf("Testing duplicate upload with filename %s", filename)
 
-	testServer := server.NewServer(CONFIG)
+	testServer, err := server.NewServer(CONFIG)
+	if err !=  nil {
+		t.Errorf("Error setting up server: %v", err)
+	}
 	handler := http.HandlerFunc(testServer.HandleImageUpload)
 
 	// Upload it
@@ -264,10 +289,16 @@ func TestGetFile(t *testing.T) {
 		t.Logf("MD5 hash of returned file does not match MD5 of original file")
 		t.Fail()
 	}
+
+	// Delete the created file
+	testServer.TesthelperDeleteFile(filename)
 }
 
 func TestGetFileRejectsPaths(t *testing.T){
-	testServer := server.NewServer(CONFIG)
+	testServer, err := server.NewServer(CONFIG)
+	if err !=  nil {
+		t.Errorf("Error setting up server: %v", err)
+	}
 	handler := http.HandlerFunc(testServer.HandleGetImage)
 	req, _ := http.NewRequest(http.MethodGet, "/get/file/with/path", nil)
 	respRecorder := httptest.NewRecorder()
@@ -275,6 +306,39 @@ func TestGetFileRejectsPaths(t *testing.T){
 
 	if respRecorder.Result().StatusCode != http.StatusBadRequest {
 		t.Logf("HandleGetImage did not return a BadRequest when sent a filename with a path")
+		t.Fail()
+	}
+}
+
+func TestGetFileRejectsPostRequest(t *testing.T) {
+	testServer, err := server.NewServer(CONFIG)
+	if err !=  nil {
+		t.Errorf("Error setting up server: %v", err)
+	}
+	handler := http.HandlerFunc(testServer.HandleGetImage)
+	req, _ := http.NewRequest(http.MethodPost, "/get/filename.txt", nil)
+	respRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(respRecorder, req)
+
+	if respRecorder.Result().StatusCode != http.StatusMethodNotAllowed{
+		t.Logf("HandleGetImage did not return a BadRequest when a POST request is made")
+		t.Fail()
+	}
+}
+
+func TestFileNotFoundReturns404(t *testing.T) {
+	testServer, err := server.NewServer(CONFIG)
+	if err !=  nil {
+		t.Errorf("Error setting up server: %v", err)
+	}
+	handler := http.HandlerFunc(testServer.HandleGetImage)
+	req, _ := http.NewRequest(http.MethodGet, "/get/fileIsNotHere.Nope", nil)
+	respRecorder := httptest.NewRecorder()
+	handler.ServeHTTP(respRecorder, req)
+
+	if respRecorder.Result().StatusCode != http.StatusNotFound{
+		t.Logf("HandleGetImage did not return a 404 when file is not found. Gave %v",
+			respRecorder.Result().StatusCode)
 		t.Fail()
 	}
 }

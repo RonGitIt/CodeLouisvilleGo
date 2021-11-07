@@ -1,22 +1,20 @@
 package server
 
 import (
-	"log"
+	"fmt"
 )
 
 type Server struct {
 	awsS3 *AWS
 }
 
-func NewServer(config AwsConfig) *Server {
+func NewServer(config AwsConfig) (*Server, error) {
 	s3, err := NewAws(config)
 	if err != nil {
-		log.Fatalf("Error setting up S3: %s", err)
+		return nil, fmt.Errorf("Error setting up S3: %w", err)
 	}
 
-	return &Server{
-		awsS3: s3,
-	}
+	return &Server{ awsS3: s3 }, nil
 }
 
 func (s *Server) TesthelperDuplicateCheck(objectName string) (bool, error) {

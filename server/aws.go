@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"io"
 	"log"
+	"strings"
 )
 
 type AWS struct {
@@ -26,6 +27,10 @@ type AwsConfig struct {
 	Secret string
 }
 
+// NewAws sets up an AWS struct with the provided configuration information.
+// It decrpyts the AWS id and secret and places them into the AWS struct
+// before returning it to the caller. If the wrong password is provided,
+// an error is returned.
 func NewAws(config AwsConfig) (*AWS, error) {
 	awsS3 := &AWS {
 		Bucket: config.Bucket,
@@ -54,10 +59,12 @@ func NewAws(config AwsConfig) (*AWS, error) {
 	return awsS3, nil
 }
 
+// setupSession adds a session to the AWS struct. This session can be used to perform
+// various actions on the Bucket, such as uploads, downloads, and deletes.
 func (a *AWS) setupSession() error {
 	sess, err := session.NewSession(&aws.Config{
 		Region: aws.String("us-east-2"),
-		Credentials: credentials.NewStaticCredentials("AKIA56L2FSSKHAQU6XET", "0km7B4XbLWak8yBXXBdTi9vRSjB4V6wqKCL7hGGQ", ""),
+		Credentials: credentials.NewStaticCredentials(a.Id, a.Secret, ""),
 	})
 	if err != nil {
 		log.Printf("Error setting up session: %v\n", err)
@@ -67,6 +74,11 @@ func (a *AWS) setupSession() error {
 	return nil
 }
 
+// UploadFile uploads the provided data to an AWS S3 bucket under the
+// provided filename. Returns a URL to the uploaded file. It's important
+// to not that this will overwrite any existing object in the bucket
+// with the same name, so it is strongly advised to check whether that
+// filename is available using AlreadyExists().
 func (a *AWS) UploadFile(filename string, file io.Reader) (string, error) {
 	// Check if file already exists. Don't overwrite existing files
 	if exists, err := a.AlreadyExists(filename); err != nil {
@@ -86,6 +98,11 @@ func (a *AWS) UploadFile(filename string, file io.Reader) (string, error) {
 	return result.Location, nil
 }
 
+// AlreadyExists checks whether a file with the provided name already
+// exists in the S3 bucket. Returns true if that filename is already
+// in the bucket; otherwise false. It does not inspect file contents
+// or perform any other checks to see whether the file already in the
+// bucket has a particular data content.
 func (a *AWS) AlreadyExists(objectName string) (bool, error) {
 	s3Service := s3.New(a.Session)
 	resp, err := s3Service.ListObjectsV2(&s3.ListObjectsV2Input{
@@ -108,6 +125,9 @@ func (a *AWS) AlreadyExists(objectName string) (bool, error) {
 	return false, nil
 }
 
+// DeleteFile deletes the specified object from the Bucket. There are
+// no routes that utilize this--it's only used by test methods
+// to clean up test files they've put into the bucket.
 func (a *AWS) DeleteFile(objectName string) (bool, error) {
 		s3Service := s3.New(a.Session)
 		_, err := s3Service.DeleteObject(&s3.DeleteObjectInput{
@@ -129,6 +149,10 @@ func (a *AWS) DeleteFile(objectName string) (bool, error) {
 		return true, nil
 }
 
+// GetFile retrieves the specified object from the AWS S3 bucket.
+// An error is returned if the file does not exist. If it does
+// exist, then the file data in returned in a byte slice along with
+// an int64 value representing the size of the data.
 func (a *AWS) GetFile(objectName string) (*[]byte, int64, error) {
 	downloader := s3manager.NewDownloader(a.Session)
 	fileData := aws.NewWriteAtBuffer([]byte{})
@@ -138,7 +162,14 @@ func (a *AWS) GetFile(objectName string) (*[]byte, int64, error) {
 		Key: aws.String(objectName),
 		})
 	if err != nil {
-		return nil, 0, fmt.Errorf("error while downloading in GetFile: %w", err)
+		fileNotFound := strings.ContainsAny(err.Error(), "NoSuchKey")
+		var newErr error
+		if fileNotFound{
+			newErr = fmt.Errorf("error: File does not exist")
+		} else {
+			newErr = fmt.Errorf("error downloading file: %v", err)
+		}
+		return nil, 0, newErr
 	}
 	fileBytes := fileData.Bytes()
 	return &fileBytes, n, nil

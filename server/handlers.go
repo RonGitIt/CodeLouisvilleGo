@@ -16,6 +16,15 @@ type WebResponse struct {
 	S3Url string
 }
 
+// HandleImageUpload handles upload POST requests and uploads the
+// provided file to an AWS S3 bucket. The file should be provided
+// as a file form field in the request. Uploads whose filename
+// already exists in the S3 bucket are rejected with a BadRequest
+// response.
+//
+// On success, a StatusOk is returned along with a WebResponse
+// object with a URL to the uploaded file (which would require appropriate
+// credentials to access).
 func (s *Server) HandleImageUpload(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
@@ -52,13 +61,19 @@ func (s *Server) HandleImageUpload(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusCreated)
 		w.Write(resp)
 
-
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 }
 
+// HandleGetImage handles GET requests and retrieves a file from the AWS S3
+// bucket. The file to retrieve is provided via the URL path and must be
+// only the filename being requested. Inclusion of any path ('/') will
+// result in a MethodNotAllowed response.
+//
+// The file is returned in the response body along with appropriate
+// Content-Disposition, Content-Type, and Content-Length headers.
 func (s *Server) HandleGetImage(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -70,8 +85,12 @@ func (s *Server) HandleGetImage(w http.ResponseWriter, r *http.Request) {
 		}
 
 		fileData, size, err := s.awsS3.GetFile(requestedFile)
-		if err != nil{
-			w.WriteHeader(http.StatusInternalServerError)
+		if err != nil {
+			if strings.Contains(err.Error(), "does not exist"){
+				w.WriteHeader(http.StatusNotFound)
+			} else {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
 			w.Write([]byte(fmt.Sprintf("Error getting file: %v", err)))
 			return
 		}

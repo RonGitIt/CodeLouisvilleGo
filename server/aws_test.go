@@ -6,16 +6,16 @@ import (
 )
 
 const (
-	ENCRYPTEDID = "jbkzZ96bw4hKLlChAm8qlnGWarqm/fuSKsltedfzNg4iVor2uPE61TMAEg=="
-	ENCRYPTEDSECRET = "Z5nwcnzaKiw7l6cBTQs81dD8xvDJJ9BRvbIvi7WJ4nPIAEa4lVmkGzMMTSiHVCU="
+	AWSTESTID = "jbkzZ96bw4hKLlChAm8qlnGWarqm/fuSKsltedfzNg4iVor2uPE61TMAEg=="
+	AWSTESTSECRET = "Z5nwcnzaKiw7l6cBTQs81dD8xvDJJ9BRvbIvi7WJ4nPIAEa4lVmkGzMMTSiHVCU="
 )
 
 func TestDecryptsSecretOnNewAws(t *testing.T) {
 	config := server.AwsConfig{
 		Bucket: TESTBUCKET,
 		Password: TESTPASSWORD,
-		Id: ENCRYPTEDID,
-		Secret: ENCRYPTEDSECRET,
+		Id: AWSTESTID,
+		Secret: AWSTESTSECRET,
 	}
 	myAws, err := server.NewAws(config)
 	if err != nil {
