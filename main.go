@@ -9,8 +9,8 @@ import (
 
 const (
 	BUCKETNAME = "go-inventory-images"
-	ID         = "7JTD2xL8fQE56RrJ5H4kwUpa0+PqEYZk1PsmOh7WBhf5zD0o2b0idJPuN1Nof2Rc"
-	SECRET     = "9ZfHw94LP6P4jnXBMRCUhKFpj+5Z82x3vOajVaecsZ4PTFXcM1o5XGxonLAS4dT+GJajSwUv1zGw82LXdMR6IqiyTio="
+	ID         = "OZOXcDQ7SEuTUqrKSRM3AJFHIBudZGSChkdGiTmDlIowjjj2uMk7IMfEeLf6+pV+"
+	SECRET     = "ASlR6S3dVtqJslXc4ruSQBt6ndA3DAJVrXDEsbj2x0dOM3k5oo7JDdfTOE0uBlkgHosK2RYojuRDueu41aGKBgKAojY="
 )
 
 func main() {
