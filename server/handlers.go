@@ -46,9 +46,11 @@ func (s *Server) HandleImageUpload(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(resp))
+			return
 		} else if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(fmt.Sprintf("Error uploading file to aws: %s", err)))
+			return
 		}
 
 		resp, _ := json.Marshal(WebResponse{
